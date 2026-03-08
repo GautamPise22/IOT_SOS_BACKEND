@@ -30,16 +30,26 @@ exports.triggerAlert = async (req, res) => {
     });
 
     if (fcmTokens.length > 0) {
-      const message = {
-        notification: {
-          title: '🚨 EMERGENCY ALERT!',
-          body: `${alertType} triggered by ${victimName}! Tap for location.`,
-        },
-        data: { mapsLink: googleMapsLink, alertId: alertRef.id },
-        tokens: fcmTokens
-      };
-      await admin.messaging().sendEachForMulticast(message);
-    }
+        const message = {
+          notification: {
+            title: '🚨 EMERGENCY ALERT!',
+            body: `${alertType} triggered by ${victimName}! Tap for location.`,
+          },
+          // ADD THIS NEW ANDROID BLOCK:
+          android: {
+            priority: 'high',
+            notification: {
+              sound: 'default',
+              defaultSound: true,
+              defaultVibrateTimings: true,
+            }
+          },
+          data: { mapsLink: googleMapsLink, alertId: alertRef.id },
+          tokens: fcmTokens
+        };
+        // Make sure you are using the updated V12 function!
+        await admin.messaging().sendEachForMulticast(message);
+      }
 
     res.status(201).json({ 
       success: true, 
