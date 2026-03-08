@@ -38,7 +38,7 @@ exports.triggerAlert = async (req, res) => {
         data: { mapsLink: googleMapsLink, alertId: alertRef.id },
         tokens: fcmTokens
       };
-      await admin.messaging().sendMulticast(message);
+      await admin.messaging().sendEachForMulticast(message);
     }
 
     res.status(201).json({ 
