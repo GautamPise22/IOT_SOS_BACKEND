@@ -1,6 +1,10 @@
 const { admin, db } = require('../config/firebase');
+const jwt = require('jsonwebtoken');
 
-// ─── UPDATED: Trigger Alert (Alerts specific chosen guardians) ─────────────
+// Change this to a secure random string in your production .env file
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-guardian-iot-key-2026';
+
+// ─── Trigger Alert (Alerts specific chosen guardians) ─────────────
 exports.triggerAlert = async (req, res) => {
   try {
     const { victimId, victimName, alertType, lat, lng } = req.body;
@@ -19,7 +23,6 @@ exports.triggerAlert = async (req, res) => {
 
     const alertRef = await db.collection('alerts').add(alertData);
 
-    // ── 1. Find the victim's explicitly chosen guardians ──
     let targetGuardianIds = [];
     if (victimId) {
       const victimDoc = await db.collection('users').doc(victimId).get();
@@ -28,10 +31,8 @@ exports.triggerAlert = async (req, res) => {
       }
     }
 
-    // ── 2. Fetch FCM Tokens for those specific guardians ──
     const allTokens = [];
     if (targetGuardianIds.length > 0) {
-      // Fetch only selected guardians
       for (const gId of targetGuardianIds) {
         const gDoc = await db.collection('users').doc(gId).get();
         if (gDoc.exists && gDoc.data().fcmToken) {
@@ -39,7 +40,6 @@ exports.triggerAlert = async (req, res) => {
         }
       }
     } else {
-      // FALLBACK: If they haven't chosen anyone, alert ALL wardens
       const wardensSnap = await db.collection('users').where('role', 'in', ['warden', 'parent']).get();
       wardensSnap.forEach(doc => {
         if (doc.data().fcmToken) allTokens.push(doc.data().fcmToken);
@@ -100,12 +100,10 @@ exports.checkHeartbeats = async (req, res) => {
 
     for (const doc of snap.docs) {
       const { victimId } = doc.data();
-      
       const userSnap = await db.collection('users').doc(victimId).get();
       if (!userSnap.exists) continue;
       const victim = userSnap.data();
 
-      // Auto-trigger SOS
       await exports.triggerAlert({
         body: {
           victimId: victimId,
@@ -118,7 +116,6 @@ exports.checkHeartbeats = async (req, res) => {
 
       await doc.ref.delete();
     }
-
     res.json({ success: true, checked: snap.size });
   } catch (err) {
     res.status(500).json({ success: false });
@@ -150,53 +147,45 @@ exports.startSafeWalk = async (req, res) => {
 exports.endSafeWalk = async (req, res) => {
   try {
     const { walkId, arrived } = req.body;
-
     await db.collection('safe_walks').doc(walkId).update({
       status: arrived ? 'Completed' : 'Abandoned',
       endedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false });
   }
 };
 
-// ─── Acknowledge Alert (Warden) ───────────────────────────────────────────
+// ─── Acknowledge & Resolve Alerts ──────────────────────────────────────────
 exports.acknowledgeAlert = async (req, res) => {
   try {
     const { alertId, wardenId, wardenName } = req.body;
-
     await db.collection('alerts').doc(alertId).update({
       status: 'Acknowledged',
       acknowledgedBy: { id: wardenId, name: wardenName },
       acknowledgedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false });
   }
 };
 
-// ─── Resolve Alert ────────────────────────────────────────────────────────
 exports.resolveAlert = async (req, res) => {
   try {
     const { alertId, resolvedBy } = req.body;
-
     await db.collection('alerts').doc(alertId).update({
       status: 'Resolved',
       resolvedBy,
       resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false });
   }
 };
 
-// ─── Get Active Alerts ────────────────────────────────────────────────────
 exports.getActiveAlerts = async (req, res) => {
   try {
     const snap = await db.collection('alerts')
@@ -206,18 +195,18 @@ exports.getActiveAlerts = async (req, res) => {
 
     const alerts = [];
     snap.forEach(doc => alerts.push({ id: doc.id, ...doc.data() }));
-
     res.json({ success: true, data: alerts });
   } catch (err) {
     res.status(500).json({ success: false });
   }
 };
 
-// ─── Register FCM Token + Location ────────────────────────────────────────
+// ─── NEW: Register with JWT Token ────────────────────────────────────────
 exports.registerUser = async (req, res) => {
   try {
     const { userId, name, role, fcmToken, lat, lng } = req.body;
 
+    // Save to Firestore
     await db.collection('users').doc(userId).set({
       name,
       role,
@@ -227,41 +216,34 @@ exports.registerUser = async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    res.json({ success: true });
+    // Generate JWT Token so the user stays logged in
+    const token = jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '365d' });
+
+    res.json({ success: true, token: token });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, message: "Server error during registration." });
   }
 };
 
-// ─── NEW: Get All Guardians (For the frontend list) ────────────────────────
 exports.getAllGuardians = async (req, res) => {
   try {
-    const snap = await db.collection('users')
-      .where('role', 'in', ['warden', 'parent'])
-      .get();
-    
+    const snap = await db.collection('users').where('role', 'in', ['warden', 'parent']).get();
     const guardians = [];
-    snap.forEach(doc => {
-      guardians.push({ id: doc.id, ...doc.data() });
-    });
-
+    snap.forEach(doc => { guardians.push({ id: doc.id, ...doc.data() }); });
     res.json({ success: true, data: guardians });
   } catch (err) {
     res.status(500).json({ success: false });
   }
 };
 
-// ─── NEW: Assign Guardians to a Victim ─────────────────────────────────────
 exports.assignGuardians = async (req, res) => {
   try {
     const { victimId, guardianIds } = req.body; 
-    
     await db.collection('users').doc(victimId).update({
       assignedGuardians: guardianIds,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-
     res.json({ success: true, message: "Guardians updated successfully" });
   } catch (err) {
     res.status(500).json({ success: false });
