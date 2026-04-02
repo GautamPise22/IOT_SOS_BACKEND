@@ -217,18 +217,26 @@ exports.getUser = async (req, res) => {
 };
 
 // ─── NEW: Get Alert History for a specific victim ──────────────────────────
+// ─── Get Alert History (Bypassing Firebase Index Error) ──────────────
 exports.getAlertHistory = async (req, res) => {
   try {
     const { userId } = req.params;
     
+    // REMOVED .orderBy() so Firebase doesn't block the request!
     const snap = await db.collection('alerts')
       .where('victimId', '==', userId)
-      .orderBy('timestamp', 'desc')
       .get();
 
     const alerts = [];
     snap.forEach(doc => {
       alerts.push({ id: doc.id, ...doc.data() });
+    });
+
+    // Sort the alerts in Node.js instead of Firebase
+    alerts.sort((a, b) => {
+      const timeA = a.timestamp ? a.timestamp._seconds : 0;
+      const timeB = b.timestamp ? b.timestamp._seconds : 0;
+      return timeB - timeA; // Sorts Newest to Oldest
     });
 
     res.json({ success: true, data: alerts });
