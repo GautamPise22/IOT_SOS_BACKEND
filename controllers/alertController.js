@@ -7,7 +7,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-guardian-iot-key-2026
 // ─── Trigger Alert (Alerts specific chosen guardians) ─────────────
 exports.triggerAlert = async (req, res) => {
   try {
-    const { victimId, victimName, alertType, lat, lng } = req.body;
+    // 👉 1. Add audioData to the destructuring
+    const { victimId, victimName, alertType, lat, lng, audioData } = req.body;
 
     const googleMapsLink = `https://www.google.com/maps/search/?api=1&query=$${lat},${lng}`;
     const navigationLink = `https://www.google.com/maps/dir/?api=1&destination=$${lat},${lng}`;
@@ -18,6 +19,7 @@ exports.triggerAlert = async (req, res) => {
       alertType: alertType || 'Manual SOS',
       location: { lat, lng, googleMapsLink, navigationLink },
       status: 'Active',
+      audioData: audioData || null, 
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     };
 
