@@ -202,6 +202,7 @@ exports.getActiveAlerts = async (req, res) => {
 };
 
 // ─── NEW: Get a Specific User's Profile ────────────────────────────────────
+// ─── Get a Specific User's Profile (FIXES THE EMPTY LIST BUG) ──────────────
 exports.getUser = async (req, res) => {
   try {
     const doc = await db.collection('users').doc(req.params.id).get();
