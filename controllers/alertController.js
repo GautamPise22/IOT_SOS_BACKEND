@@ -201,6 +201,20 @@ exports.getActiveAlerts = async (req, res) => {
   }
 };
 
+// ─── NEW: Get a Specific User's Profile ────────────────────────────────────
+exports.getUser = async (req, res) => {
+  try {
+    const doc = await db.collection('users').doc(req.params.id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, data: doc.data() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 // ─── NEW: Register with JWT Token ────────────────────────────────────────
 exports.registerUser = async (req, res) => {
   try {

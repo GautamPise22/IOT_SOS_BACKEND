@@ -18,5 +18,6 @@ router.post('/walk/end', ctrl.endSafeWalk);
 router.post('/users/register', ctrl.registerUser);
 router.get('/guardians', ctrl.getAllGuardians);
 router.post('/users/assign-guardians', ctrl.assignGuardians);
+router.get('/users/:id', ctrl.getUser); // <-- ADD THIS LINE
 
 module.exports = router;
