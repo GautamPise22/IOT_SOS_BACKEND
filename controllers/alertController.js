@@ -216,6 +216,28 @@ exports.getUser = async (req, res) => {
   }
 };
 
+// ─── NEW: Get Alert History for a specific victim ──────────────────────────
+exports.getAlertHistory = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const snap = await db.collection('alerts')
+      .where('victimId', '==', userId)
+      .orderBy('timestamp', 'desc')
+      .get();
+
+    const alerts = [];
+    snap.forEach(doc => {
+      alerts.push({ id: doc.id, ...doc.data() });
+    });
+
+    res.json({ success: true, data: alerts });
+  } catch (err) {
+    console.error('getAlertHistory error:', err);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 // ─── NEW: Register with JWT Token ────────────────────────────────────────
 exports.registerUser = async (req, res) => {
   try {

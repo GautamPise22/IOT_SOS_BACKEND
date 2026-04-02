@@ -19,5 +19,6 @@ router.post('/users/register', ctrl.registerUser);
 router.get('/guardians', ctrl.getAllGuardians);
 router.post('/users/assign-guardians', ctrl.assignGuardians);
 router.get('/users/:id', ctrl.getUser);
+router.get('/history/:userId', ctrl.getAlertHistory);
 
 module.exports = router;
